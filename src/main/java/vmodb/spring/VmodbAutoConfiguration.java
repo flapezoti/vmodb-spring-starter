@@ -9,17 +9,24 @@ import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.Bean;
 
 /**
- * Spring integration for a VMODB VMS, except for the call to VmsApplication.build(...), which
- * must be made from the application's own package (VMODB resolves @Microservice classes by the
- * direct caller's package; see VmodbBootstrap). The application declares the VmsApplication
- * bean itself:
+ * Spring integration for a VMODB VMS, except for the calls to VmsApplication.prepare(...) and
+ * VmsPreparedApplication#complete(...), which must be made from the application's own package
+ * (VMODB resolves @Microservice classes by the direct caller's package; see VmodbBootstrap). The
+ * application declares the VmsApplication bean itself, with its @Microservice instance(s)
+ * constructed by Spring:
  *
  *   {@literal @}Bean
- *   VmsApplication vmsApplication(VmodbProperties props) throws Exception {
- *       return VmsApplication.build(VmodbBootstrap.buildOptions(props), myHandlerBuilder);
+ *   VmsPreparedApplication preparedVms(VmodbProperties props) throws Exception {
+ *       return VmsApplication.prepare(VmodbBootstrap.buildOptions(props));
  *   }
  *
- * The lifecycle and transaction manager beans below are then registered around it.
+ *   {@literal @}Bean
+ *   VmsApplication vmsApplication(VmsPreparedApplication prepared, MyService myService) throws Exception {
+ *       return prepared.complete(Map.of(MyService.class.getName(), myService), myHandlerBuilder);
+ *   }
+ *
+ * The lifecycle and transaction manager beans below are then registered around the resulting
+ * VmsApplication, regardless of how it was constructed.
  */
 @AutoConfiguration
 @EnableConfigurationProperties(VmodbProperties.class)
