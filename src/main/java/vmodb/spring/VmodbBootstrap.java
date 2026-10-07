@@ -1,6 +1,7 @@
 package vmodb.spring;
 
 import dk.ku.di.dms.vms.sdk.embed.client.VmsApplicationOptions;
+import dk.ku.di.dms.vms.sdk.embed.client.VmsPreparedApplication;
 
 import java.util.Properties;
 
@@ -9,9 +10,9 @@ import java.util.Properties;
  * VmsApplicationOptions.build(Properties, host, port, packages) overload, which does not use
  * VMODB's static ConfigUtils.loadProperties() singleton.
  *
- * Unlike VmsApplication.build(), this does not depend on the caller's package, so it can live in
- * a shared library. VmsApplication.build() cannot: it calls ConfigUtils.getCallerPackage() and
- * keeps only the @Microservice classes in the direct caller's package.
+ * Unlike VmsApplication.prepare()/.build(), this does not depend on the caller's package, so it
+ * can live in a shared library. Those cannot: they call ConfigUtils.getCallerPackage() and keep
+ * only the @Microservice classes in the direct caller's package.
  */
 public final class VmodbBootstrap {
 
@@ -31,5 +32,24 @@ public final class VmodbBootstrap {
         properties.setProperty("max_records", String.valueOf(props.getMaxRecords()));
 
         return VmsApplicationOptions.build(properties, props.getHost(), props.getPort(), props.getPackages());
+    }
+
+    /**
+     * Looks up a repository built by VMODB, for exposing as a typed @Bean in the application:
+     *   {@literal @}Bean IProductRepository productRepository(VmsPreparedApplication prepared) {
+     *       return VmodbBootstrap.repository(prepared, "products");
+     *   }
+     * A repository is available as soon as VmsApplication.prepare(...) returns, before any
+     * @Microservice instance is constructed -- which is the point, since the application's own
+     * @Microservice bean needs the repository as a constructor argument. See
+     * VmsPreparedApplication.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> T repository(VmsPreparedApplication prepared, String table) {
+        Object repository = prepared.getRepositoryProxy(table);
+        if (repository == null) {
+            throw new IllegalStateException("No repository found for table '" + table + "'");
+        }
+        return (T) repository;
     }
 }
