@@ -1,8 +1,14 @@
 package vmodb.spring;
 
+import dk.ku.di.dms.vms.modb.api.query.parser.Parser;
+import dk.ku.di.dms.vms.modb.api.query.statement.SelectStatement;
 import dk.ku.di.dms.vms.sdk.embed.client.VmsApplicationOptions;
 import dk.ku.di.dms.vms.sdk.embed.client.VmsPreparedApplication;
+import org.springframework.data.jpa.repository.Query;
 
+import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 /**
@@ -37,19 +43,34 @@ public final class VmodbBootstrap {
     /**
      * Looks up a repository built by VMODB, for exposing as a typed @Bean in the application:
      *   {@literal @}Bean IProductRepository productRepository(VmsPreparedApplication prepared) {
-     *       return VmodbBootstrap.repository(prepared, "products");
+     *       return VmodbBootstrap.repository(prepared, "products", IProductRepository.class);
      *   }
-     * A repository is available as soon as VmsApplication.prepare(...) returns, before any
-     * @Microservice instance is constructed -- which is the point, since the application's own
-     * @Microservice bean needs the repository as a constructor argument. See
-     * VmsPreparedApplication.
+     * The standard way to obtain a repository through this starter. repositoryInterface is
+     * required so Spring Data's own {@literal @}org.springframework.data.jpa.repository.Query
+     * annotation is recognized on the interface's methods, alongside VMODB's own
+     * {@literal @}Query (if a method carries both, Spring's wins). Either way the query string is
+     * parsed and executed by VMODB's own query engine.
+     *
+     * One real limitation: VMODB binds a query's :named placeholders to the method's arguments by
+     * POSITION, not by name the way Spring Data's own @Query normally does -- placeholders must
+     * be declared in the same order as the method's parameters.
      */
-    @SuppressWarnings("unchecked")
-    public static <T> T repository(VmsPreparedApplication prepared, String table) {
-        Object repository = prepared.getRepositoryProxy(table);
-        if (repository == null) {
-            throw new IllegalStateException("No repository found for table '" + table + "'");
+    public static <T> T repository(VmsPreparedApplication prepared, String table, Class<T> repositoryInterface) {
+        Map<String, SelectStatement> extraQueries = new HashMap<>();
+        for (Method method : repositoryInterface.getDeclaredMethods()) {
+            Query springQuery = method.getAnnotation(Query.class);
+            if (springQuery == null) continue;
+            extraQueries.put(method.getName(), Parser.parse(springQuery.value()));
         }
-        return (T) repository;
+        try {
+            @SuppressWarnings("unchecked")
+            T repository = (T) prepared.buildRepositoryProxy(table, repositoryInterface, extraQueries);
+            if (repository == null) {
+                throw new IllegalStateException("No repository found for table '" + table + "'");
+            }
+            return repository;
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to build repository proxy for table '" + table + "'", e);
+        }
     }
 }

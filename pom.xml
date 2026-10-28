@@ -40,6 +40,18 @@
             <version>1.0-SNAPSHOT</version>
         </dependency>
 
+        <!--
+          Only for recognizing Spring Data's own @Query annotation on a VMODB repository
+          interface (VmodbBootstrap#repository(prepared, table, repositoryInterface)). This
+          stops at the starter: vmodb-fork never depends on Spring Data, and nothing here uses
+          an EntityManager, a DataSource, or Spring Data's own repository-factory machinery;
+          only the @Query annotation class itself is read, by plain reflection.
+        -->
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-jpa</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

@@ -15,11 +15,13 @@ bean lifecycle — rather than by VMODB's own reflection, via `vmodb-fork`'s two
 - `VmodbProperties` — binds the `vmodb.*` keys of `application.yml` (host, port, packages to scan,
   and VMODB's runtime tunables) with `@ConfigurationProperties`.
 - `VmodbBootstrap.buildOptions(props)` — turns `VmodbProperties` into a `VmsApplicationOptions`.
-- `VmodbBootstrap.repository(prepared, table)` — looks up a repository VMODB built for the given
-  table, typed for use in a `@Bean` method. A repository is available as soon as
-  `VmsApplication.prepare(...)` returns, before any `@Microservice` instance is constructed —
-  which is the point: the application's own `@Microservice` bean needs the repository as a
-  constructor argument.
+- `VmodbBootstrap.repository(prepared, table, repositoryInterface)` — looks up a repository
+  VMODB built for the given table, typed for use in a `@Bean` method. A repository is available
+  as soon as `VmsApplication.prepare(...)` returns, before any `@Microservice` instance is
+  constructed — which is the point: the application's own `@Microservice` bean needs the
+  repository as a constructor argument. `repositoryInterface` is required because Spring Data's
+  own `@org.springframework.data.jpa.repository.Query` annotation is only recognized on that
+  interface's methods when passed explicitly.
 - `VmodbAutoConfiguration` — registers a `SmartLifecycle` bean that calls `VmsApplication.start()`
   and `.close()`, and an `ITransactionManager` bean taken from the VMS. Both are created when a
   `VmsApplication` bean exists.
@@ -59,7 +61,7 @@ public class Main {
 
     @Bean
     IMyRepository myRepository(VmsPreparedApplication prepared) {
-        return VmodbBootstrap.repository(prepared, "my_table");
+        return VmodbBootstrap.repository(prepared, "my_table", IMyRepository.class);
     }
 
     // A genuine Spring bean: constructed by Spring's own dependency resolution, not by VMODB's
